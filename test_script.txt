@@ -1,0 +1,38 @@
+# This is a test script for the math file evaluator.
+
+# Basic evaluation
+10 * 5
+
+# Define a variable
+a = 15
+
+# Use the variable
+a + 5
+
+# Define a constant
+const GRAVITY = 9.8
+
+# Try to reassign it (should fail, but the script should continue)
+const GRAVITY = 10
+
+# Display everything
+disp
+
+# --- Advanced Features ---
+
+# Arbitrary Precision
+pi to 30 places
+
+# Root functions
+cbrt(27)
+root(625, 4)
+
+# Logarithms
+log(1000, 10)
+ln(e)
+
+# Calculus and Solving
+y = x**3
+diff(y, x)
+integrate(3*x**2, x)
+solve(x**2 - 9, x)
