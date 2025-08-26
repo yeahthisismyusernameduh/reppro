@@ -1,11 +1,20 @@
 from src.math_core.evaluator import MathEvaluator
 import sys
 
+def get_version():
+    """Reads the version from the VERSION file."""
+    try:
+        with open('VERSION', 'r') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return "0.0.0"
+
 def main():
     """
     Main function to run the interactive REPL.
     """
-    print("Welcome to the Math CLI!")
+    version = get_version()
+    print(f"Welcome to the Math CLI! (Version {version})")
     print("Enter expressions to evaluate, or 'quit' to exit.")
     evaluator = MathEvaluator()
 

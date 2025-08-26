@@ -55,6 +55,42 @@ python3 math_file_eval.py path/to/your/script.txt
 
 The script file should contain one command per line. Lines starting with `#` are treated as comments and are ignored.
 
+**Example `script.txt`:**
+```
+# Define some variables and constants
+a = 5, const G = 9.8 --q
+
+# Perform a calculation
+result = a * G
+result
+
+# Display the final state
+disp
+```
+
+**Corresponding Output:**
+```
+In:  result = a * G
+Out: Defined variable result = 49.0
+
+In:  result
+Out: 49.0
+
+In:  disp
+Out:
+Built-Ins:
+  e = 2.71828
+  pi = 3.14159
+  tau = 6.28319
+
+Constants:
+  G = 9.8
+
+Variables:
+  a = 5
+  result = 49.0
+```
+
 ## Commands & Syntax Reference
 
 ### General Syntax
@@ -108,8 +144,10 @@ Built-Ins:
   e = 2.71828
   pi = 3.14159
   tau = 6.28319
+
 Constants:
   (none)
+
 Variables:
   x = 10
 ```

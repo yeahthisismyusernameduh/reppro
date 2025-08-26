@@ -243,9 +243,11 @@ class MathEvaluator:
         if command == 'disp':
             output.append("Built-Ins:")
             output.extend(built_ins if built_ins else ["  (none)"])
-            output.append("\nConstants:")
+            output.append("") # Add blank line
+            output.append("Constants:")
             output.extend(user_consts if user_consts else ["  (none)"])
-            output.append("\nVariables:")
+            output.append("") # Add blank line
+            output.append("Variables:")
             output.extend(user_vars if user_vars else ["  (none)"])
         elif command == 'disp consts':
             output.append("Constants:")
