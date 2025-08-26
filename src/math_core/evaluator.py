@@ -9,125 +9,252 @@ class MathEvaluator:
         """
         Initializes the evaluator, setting up built-in constants.
         """
+        self.DEFAULT_PRECISION = 6 # Use 6 for pi to show 3.14159
+        self._built_in_names = ['pi', 'e', 'tau']
         # _state stores variables and constants.
         # The value is a tuple: (sympy_expression, is_constant)
         self._state = {
             'pi': (sympy.pi, True),
             'e': (sympy.E, True),
-            'tau': (2 * sympy.pi, True), # Define tau as 2*pi
+            'tau': (2 * sympy.pi, True),
         }
 
     def evaluate(self, input_str: str):
         """
-        Evaluates a single line of input.
-
-        Args:
-            input_str: The string to evaluate.
-
-        Returns:
-            The result of the evaluation, or a status message.
+        Evaluates a single line of input, which may contain multiple statements.
         """
-        input_str = input_str.strip()
-        if not input_str:
+        import re
+
+        # --- Pre-processing Step ---
+        is_quiet = input_str.strip().endswith('--q')
+        if is_quiet:
+            input_str = input_str.strip()[:-3].strip()
+
+        input_str = re.sub(r'(?<=\d),(?=\d)', '', input_str)
+
+        # Handle 'del' command before splitting by comma
+        if input_str.strip().startswith('del '):
+            statements = [input_str.strip()]
+        else:
+            statements = re.split(r',(?![^\(]*\))', input_str)
+
+        results = []
+        for statement in statements:
+            statement = statement.strip()
+            if not statement:
+                continue
+
+            result = self._evaluate_statement(statement)
+            if result is not None:
+                results.append(str(result))
+
+        if is_quiet or not results:
             return None
 
+        return "\n".join(results)
+
+    def _evaluate_statement(self, statement_str: str):
+        """
+        Evaluates a single, pre-processed statement.
+        """
+        import re
+
+        # --- Handle Special Functions (diff, integrate, solve) ---
+        m = re.match(r'^(diff|integrate|solve)\((.*)\)$', statement_str)
+        if m:
+            func_name = m.group(1)
+            args_str = m.group(2)
+            try:
+                parts = [s.strip() for s in args_str.split(',')]
+                expr_str, var_str = parts[0], parts[1]
+
+                eval_context = {
+                    'root': sympy.root, 'cbrt': lambda x: sympy.root(x, 3),
+                    'sin': sympy.sin, 'cos': sympy.cos, 'tan': sympy.tan,
+                    'csc': sympy.csc, 'sec': sympy.sec, 'cot': sympy.cot,
+                    'asin': sympy.asin, 'acos': sympy.acos, 'atan': sympy.atan,
+                    'acsc': sympy.acsc, 'asec': sympy.asec, 'acot': sympy.acot,
+                    'sqrt': sympy.sqrt, 'log': sympy.log, 'ln': lambda x: sympy.log(x),
+                }
+                for k, v in self._state.items():
+                    if k != var_str:
+                        eval_context[k] = v[0]
+
+                expr = sympy.sympify(expr_str, locals=eval_context)
+                var_symbol = sympy.Symbol(var_str)
+
+                if func_name == 'diff':
+                    result = sympy.diff(expr, var_symbol)
+                elif func_name == 'integrate':
+                    result = sympy.integrate(expr, var_symbol)
+                else: # solve
+                    result = sympy.solve(expr, var_symbol)
+
+                return self._format_output(result, None)
+            except Exception as e:
+                return f"Error in {func_name}: {e}"
+
+
         # --- Handle Display Commands ---
-        if input_str in ('disp', 'disp vars', 'disp consts'):
-            output = []
-            if input_str == 'disp':
-                output.append("Constants:")
-                output.extend(self._format_state(constants=True))
-                output.append("\nVariables:")
-                output.extend(self._format_state(constants=False))
-            elif input_str == 'disp consts':
-                output.append("Constants:")
-                output.extend(self._format_state(constants=True))
-            elif input_str == 'disp vars':
-                output.append("Variables:")
-                output.extend(self._format_state(constants=False))
-            return "\n".join(output)
+        if statement_str in ('disp', 'disp vars', 'disp consts'):
+            return self._format_state_new(statement_str)
+
+        # --- Handle Deletion ---
+        if statement_str.startswith('del '):
+            names_str = statement_str[4:]
+            names_to_delete = [name.strip() for name in names_str.split(',')]
+
+            deleted, errors = [], []
+            for name in names_to_delete:
+                if not name: continue
+                if name in self._built_in_names:
+                    errors.append(f"Cannot delete built-in '{name}'")
+                elif name in self._state:
+                    del self._state[name]
+                    deleted.append(name)
+                else:
+                    errors.append(f"Name '{name}' not found")
+
+            response_parts = []
+            if deleted:
+                response_parts.append(f"Deleted: {', '.join(deleted)}")
+            if errors:
+                response_parts.append(f"Errors: {', '.join(errors)}")
+            return ". ".join(response_parts) if response_parts else "No action taken."
 
         # --- Handle Assignment ---
-        is_const_assignment = input_str.startswith('const ')
-        if '=' in input_str:
+        is_const_assignment = statement_str.startswith('const ')
+        if '=' in statement_str:
             if is_const_assignment:
-                # Remove 'const ' part for parsing
-                assign_str = input_str[6:]
+                assign_str = statement_str[6:]
             else:
-                assign_str = input_str
+                assign_str = statement_str
 
             parts = assign_str.split('=', 1)
             var_name = parts[0].strip()
             expr_str = parts[1].strip()
 
-            if not var_name.isidentifier():
-                return "Error: Invalid name."
+            if not var_name.isidentifier() or var_name in self._built_in_names:
+                return f"Error: Invalid or protected name '{var_name}'."
 
             if var_name in self._state and self._state[var_name][1]:
                 return f"Error: Cannot reassign constant '{var_name}'."
 
             try:
-                eval_context = {k: v[0] for k, v in self._state.items()}
-                result_expr = sympy.sympify(expr_str, locals=eval_context)
-                self._state[var_name] = (result_expr, is_const_assignment)
-                return f"Defined {'constant' if is_const_assignment else 'variable'} {var_name}"
+                symbolic_expr, _ = self._parse_expression(expr_str)
+
+                # Check for undefined symbols before assignment
+                for symbol in symbolic_expr.free_symbols:
+                    if str(symbol) not in self._state:
+                        return f"Error: Name '{symbol}' is not defined."
+
+                self._state[var_name] = (symbolic_expr, is_const_assignment)
+
+                evaluated_value = self._evaluate_for_display(symbolic_expr)
+                formatted_value = self._format_output(evaluated_value, None)
+                return f"Defined {'constant' if is_const_assignment else 'variable'} {var_name} = {formatted_value}"
             except Exception as e:
                 return f"Error: {e}"
 
         # --- Handle Expression Evaluation ---
-        import re
         try:
-            # Check for precision syntax first
-            precision_match = re.search(r' to (\d+) places$', input_str)
-            if precision_match:
-                num_places = int(precision_match.group(1))
-                # Get the core expression to evaluate
-                core_expr_str = input_str[:precision_match.start()].strip()
-            else:
-                num_places = None
-                core_expr_str = input_str
+            symbolic_expr, num_places = self._parse_expression(statement_str)
 
-            # Set up the evaluation context with state and advanced functions
-            eval_context = {k: v[0] for k, v in self._state.items()}
+            # Check for undefined symbols
+            for symbol in symbolic_expr.free_symbols:
+                if str(symbol) not in self._state:
+                    return f"Error: Name '{symbol}' is not defined."
 
-            # Add calculus, solving, and root functions to the context
-            # Also add cbrt as a convenience function
-            advanced_funcs = {
-                'diff': sympy.diff,
-                'integrate': sympy.integrate,
-                'solve': sympy.solve,
-                'root': sympy.root,
-                'cbrt': lambda x: sympy.root(x, 3),
-                'sin': sympy.sin, 'cos': sympy.cos, 'tan': sympy.tan,
-                'csc': sympy.csc, 'sec': sympy.sec, 'cot': sympy.cot,
-                'asin': sympy.asin, 'acos': sympy.acos, 'atan': sympy.atan,
-                'acsc': sympy.acsc, 'asec': sympy.asec, 'acot': sympy.acot,
-                'sqrt': sympy.sqrt,
-                'log': sympy.log,
-                'ln': lambda x: sympy.log(x),
-            }
-            eval_context.update(advanced_funcs)
-
-            result = sympy.sympify(core_expr_str, locals=eval_context)
-
-            # If a precision was specified, evaluate the result
-            if num_places is not None:
-                # Use .evalf() for numerical evaluation to N decimal places
-                result = result.evalf(num_places)
-
-            return result
+            final_value = self._evaluate_for_display(symbolic_expr)
+            return self._format_output(final_value, num_places)
         except Exception as e:
             return f"Error: {e}"
 
-    def _format_state(self, constants: bool) -> list[str]:
-        """Helper to format variables or constants for display."""
-        items = []
+    def _evaluate_for_display(self, expr):
+        subs_dict = {k: v[0] for k, v in self._state.items()}
+        return expr.subs(subs_dict)
+
+    def _format_output(self, value, num_places) -> str:
+        if isinstance(value, list):
+            return str([self._format_output(item, num_places) for item in value])
+
+        if hasattr(value, 'is_number') and value.is_number:
+            prec = num_places if num_places is not None else self.DEFAULT_PRECISION
+            # Use evalf for floating point results
+            if not value.is_Integer:
+                value = value.evalf(prec)
+
+            s = str(value)
+            if '.' in s:
+                s = s.rstrip('0').rstrip('.')
+            return s
+
+        return str(value)
+
+    def _parse_expression(self, expr_str: str):
+        import re
+
+        precision_match = re.search(r' to (\d+) places$', expr_str)
+        if precision_match:
+            num_places = int(precision_match.group(1))
+            core_expr_str = expr_str[:precision_match.start()].strip()
+        else:
+            num_places = None
+            core_expr_str = expr_str
+
+        symbolic_expr = self._sympify_expression(core_expr_str)
+        return symbolic_expr, num_places
+
+    def _sympify_expression(self, expr_str: str):
+        eval_context = {
+            'diff': sympy.diff, 'integrate': sympy.integrate, 'solve': sympy.solve,
+            'root': sympy.root, 'cbrt': lambda x: sympy.root(x, 3),
+            'sin': sympy.sin, 'cos': sympy.cos, 'tan': sympy.tan,
+            'csc': sympy.csc, 'sec': sympy.sec, 'cot': sympy.cot,
+            'asin': sympy.asin, 'acos': sympy.acos, 'atan': sympy.atan,
+            'acsc': sympy.acsc, 'asec': sympy.asec, 'acot': sympy.acot,
+            'sqrt': sympy.sqrt, 'log': sympy.log, 'ln': lambda x: sympy.log(x),
+        }
+
+        for var_name in self._state.keys():
+            eval_context[var_name] = sympy.Symbol(var_name)
+
+        return sympy.sympify(expr_str, locals=eval_context)
+
+    def _format_state_new(self, command: str) -> str:
+        """Formats the current state for display based on the command."""
+        built_ins, user_consts, user_vars = [], [], []
+
         for name, (value, is_const) in sorted(self._state.items()):
-            if is_const == constants:
-                items.append(f"  {name} = {value}")
-        if not items:
-            items.append("  (none)")
-        return items
+            # Evaluate the value for display
+            display_val = self._evaluate_for_display(value)
+            # Format it
+            formatted_val = self._format_output(display_val, None)
+
+            line = f"  {name} = {formatted_val}"
+            if name in self._built_in_names:
+                built_ins.append(line)
+            elif is_const:
+                user_consts.append(line)
+            else:
+                user_vars.append(line)
+
+        output = []
+        if command == 'disp':
+            output.append("Built-Ins:")
+            output.extend(built_ins if built_ins else ["  (none)"])
+            output.append("\nConstants:")
+            output.extend(user_consts if user_consts else ["  (none)"])
+            output.append("\nVariables:")
+            output.extend(user_vars if user_vars else ["  (none)"])
+        elif command == 'disp consts':
+            output.append("Constants:")
+            output.extend(user_consts if user_consts else ["  (none)"])
+        elif command == 'disp vars':
+            output.append("Variables:")
+            output.extend(user_vars if user_vars else ["  (none)"])
+
+        return "\n".join(output)
 
 
 if __name__ == '__main__':

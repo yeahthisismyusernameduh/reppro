@@ -20,6 +20,14 @@ disp
 
 # --- Advanced Features ---
 
+# Output Formatting and Precision
+1.2 + 0.8
+1/4
+pi
+pi to 10 places
+x = 2.0000
+x
+
 # Arbitrary Precision
 pi to 30 places
 
@@ -36,3 +44,15 @@ y = x**3
 diff(y, x)
 integrate(3*x**2, x)
 solve(x**2 - 9, x)
+
+# --- Deletion Tests ---
+del_var1 = 1, del_var2 = 2
+del del_var1
+del_var1
+del del_var2, non_existent
+del pi, e
+
+# --- Final Display Test ---
+disp
+disp vars
+disp consts
