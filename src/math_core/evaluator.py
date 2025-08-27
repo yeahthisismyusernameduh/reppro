@@ -59,11 +59,83 @@ class MathEvaluator:
         """
         import re
 
-        # --- Handle Special Functions (diff, integrate, solve) ---
-        m = re.match(r'^(diff|integrate|solve)\((.*)\)$', statement_str)
+        # --- Handle diff and solve with new 'wrt' syntax ---
+        m = re.match(r'^(diff|solve)\s+(.*?)(?:\s+wrt\s+(\w+))?$', statement_str, re.IGNORECASE)
         if m:
-            func_name = m.group(1)
-            args_str = m.group(2)
+            command, expr_str, var_str = m.groups()
+            command = command.lower()
+
+            # Improve error handling for trailing 'wrt'
+            if 'wrt' in statement_str.lower().rsplit(None, 2)[-2:] and not var_str:
+                return f"Error: Missing variable after 'wrt'."
+
+            try:
+                # Auto-detect variable if not provided
+                if not var_str:
+                    temp_expr_str = expr_str # Use a temp var to not change expr_str for later use
+                    if '=' in temp_expr_str:
+                        lhs_str, rhs_str = temp_expr_str.split('=', 1)
+                        lhs_sym = self._sympify_expression(lhs_str)
+                        rhs_sym = self._sympify_expression(rhs_str)
+                        free_symbols = lhs_sym.free_symbols.union(rhs_sym.free_symbols)
+                    else:
+                        symbolic_expr = self._sympify_expression(temp_expr_str)
+                        free_symbols = symbolic_expr.free_symbols
+
+                    if len(free_symbols) == 1:
+                        var_str = str(free_symbols.pop())
+                    elif len(free_symbols) > 1:
+                        return f"Error: Ambiguous expression. Please specify a variable using 'wrt'."
+
+                # If we have a variable (specified or detected), proceed.
+                if var_str:
+                    eval_context = {
+                        'root': sympy.root, 'cbrt': lambda x: sympy.root(x, 3),
+                        'sin': sympy.sin, 'cos': sympy.cos, 'tan': sympy.tan,
+                        'csc': sympy.csc, 'sec': sympy.sec, 'cot': sympy.cot,
+                        'asin': sympy.asin, 'acos': sympy.acos, 'atan': sympy.atan,
+                        'acsc': sympy.acsc, 'asec': sympy.asec, 'acot': sympy.acot,
+                        'sqrt': sympy.sqrt, 'log': sympy.log, 'ln': lambda x: sympy.log(x),
+                    }
+                    for k, v in self._state.items():
+                        if k != var_str:
+                            eval_context[k] = v[0]
+
+                    var_symbol = sympy.Symbol(var_str)
+
+                    if command == 'diff':
+                        expr = sympy.sympify(expr_str, locals=eval_context)
+                        result = sympy.diff(expr, var_symbol)
+                    else: # solve
+                        if '=' in expr_str:
+                            lhs_str, rhs_str = expr_str.split('=', 1)
+                            lhs = sympy.sympify(lhs_str.strip(), locals=eval_context)
+                            rhs = sympy.sympify(rhs_str.strip(), locals=eval_context)
+                            equation = sympy.Eq(lhs, rhs)
+                        else:
+                            expr = sympy.sympify(expr_str, locals=eval_context)
+                            equation = expr # Assume it's set to 0
+                        result = sympy.solve(equation, var_symbol)
+
+                    # Custom formatting for solve
+                    if command == 'solve':
+                         return f"Solutions: {self._format_output(result, None)}"
+                    else:
+                        return self._format_output(result, None)
+
+                else: # No variable specified or found (e.g., 'diff 5')
+                    if command == 'diff':
+                        return 0
+                    else:
+                        return "Error: Cannot solve a constant expression."
+            except Exception as e:
+                return f"Error in {command}: {e}"
+
+        # --- Handle integrate (old syntax) ---
+        m_integrate = re.match(r'^integrate\((.*)\)$', statement_str, re.IGNORECASE)
+        if m_integrate:
+            func_name = "integrate"
+            args_str = m_integrate.group(1)
             try:
                 parts = [s.strip() for s in args_str.split(',')]
                 expr_str, var_str = parts[0], parts[1]
@@ -82,13 +154,7 @@ class MathEvaluator:
 
                 expr = sympy.sympify(expr_str, locals=eval_context)
                 var_symbol = sympy.Symbol(var_str)
-
-                if func_name == 'diff':
-                    result = sympy.diff(expr, var_symbol)
-                elif func_name == 'integrate':
-                    result = sympy.integrate(expr, var_symbol)
-                else: # solve
-                    result = sympy.solve(expr, var_symbol)
+                result = sympy.integrate(expr, var_symbol)
 
                 return self._format_output(result, None)
             except Exception as e:

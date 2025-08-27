@@ -41,9 +41,9 @@ ln(e)
 
 # Calculus and Solving
 y = x**3
-diff(y, x)
+diff y wrt x
 integrate(3*x**2, x)
-solve(x**2 - 9, x)
+solve x**2 - 9 = 0 wrt x
 
 # --- Deletion Tests ---
 del_var1 = 1, del_var2 = 2
@@ -56,3 +56,14 @@ del pi, e
 disp
 disp vars
 disp consts
+
+# --- Auto-detection and Equation Tests ---
+diff x**2 + 2*x
+diff x*y
+diff x*y wrt y
+diff 100
+solve x + 10
+solve x + y
+solve x**2 = 4
+solve a*x + 5 = 15 wrt x
+diff x**2 wrt

@@ -165,11 +165,62 @@ Variables:
 
 ### Supported Functions
 
-The tool supports a wide range of functions, including but not limited to:
+The tool supports a wide range of common mathematical functions.
 
 *   **Trigonometric:** `sin`, `cos`, `tan`, `csc`, `sec`, `cot`
 *   **Inverse Trig:** `asin`, `acos`, `atan`, etc.
 *   **Roots:** `sqrt(x)`, `cbrt(x)`, `root(x, n)`
 *   **Logarithms:** `log(x, base)`, `ln(x)`
-*   **Calculus:** `diff(expr, var)`, `integrate(expr, var)`
-*   **Solving:** `solve(equation, var)`
+
+---
+
+### Calculus and Solving
+
+#### `diff` - Differentiation
+
+Calculates the derivative of an expression.
+
+**Syntax:** `diff <expression> [wrt <variable>]`
+
+*   If the expression contains only one variable, you can omit `wrt`.
+*   If the expression contains multiple variables, you must specify which one to differentiate with respect to.
+
+**Examples:**
+```
+> diff x**3 + 2*x
+2*x + 3*x**2
+
+> a=5, b=10 --q
+> diff a*x**2 + b*y wrt x
+10*x
+```
+
+#### `integrate` - Integration
+
+Calculates the indefinite integral of an expression.
+
+**Syntax:** `integrate(<expression>, <variable>)`
+
+**Example:**
+```
+> integrate(x**2, x)
+x**3/3
+```
+
+#### `solve` - Equation Solving
+
+Solves an equation for a given variable.
+
+**Syntax:** `solve <equation> [wrt <variable>]`
+
+*   Equations can be written with an `=` sign (e.g., `x**2 = 4`) or as an expression that is assumed to equal zero (e.g., `x**2 - 4`).
+*   Like `diff`, the variable is optional if it is unambiguous.
+
+**Examples:**
+```
+> solve x**2 - 9
+Solutions: [-3, 3]
+
+> solve a*x = b wrt x
+Solutions: [b/a]
+```
