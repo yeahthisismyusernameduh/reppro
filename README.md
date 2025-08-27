@@ -219,8 +219,8 @@ Solves an equation for a given variable.
 **Examples:**
 ```
 > solve x**2 - 9
-Solutions: [-3, 3]
+Solutions: x = -3, 3
 
 > solve a*x = b wrt x
-Solutions: [b/a]
+Solutions: x = b/a
 ```

@@ -119,7 +119,8 @@ class MathEvaluator:
 
                     # Custom formatting for solve
                     if command == 'solve':
-                         return f"Solutions: {self._format_output(result, None)}"
+                        formatted_results = [self._format_output(r, None) for r in result]
+                        return f"Solutions: {var_symbol.name} = {', '.join(formatted_results)}"
                     else:
                         return self._format_output(result, None)
 
