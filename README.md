@@ -278,3 +278,18 @@ Factorizes a mathematical expression.
 > fac x**2 - 1
 (x - 1)*(x + 1)
 ```
+
+#### `eval` - Evaluation with Temporary Values
+
+Evaluates an expression using temporary values for variables, without affecting the main session state.
+
+**Syntax:** `eval <expression> for <var1>=<val1>, <var2>=<val2>, ...`
+
+**Example:**
+```
+> x = 2 --q
+> eval x + 1 for x = 10
+11
+> x
+2
+```

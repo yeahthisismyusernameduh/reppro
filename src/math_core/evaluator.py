@@ -32,8 +32,8 @@ class MathEvaluator:
 
         input_str = re.sub(r'(?<=\d),(?=\d)', '', input_str)
 
-        # Handle 'del' command before splitting by comma
-        if input_str.strip().startswith('del '):
+        # Handle commands that consume the whole line before splitting by comma
+        if input_str.strip().lower().startswith(('del ', 'eval ')):
             statements = [input_str.strip()]
         else:
             statements = re.split(r',(?![^\(]*\))', input_str)
@@ -148,6 +148,32 @@ class MathEvaluator:
                 return self._format_output(result, None)
             except Exception as e:
                 return f"Error in {command}: {e}"
+
+        # --- Handle eval command ---
+        m_eval = re.match(r'^eval\s+(.*)\s+for\s+(.*)', statement_str, re.IGNORECASE)
+        if m_eval:
+            expr_str, assignments_str = m_eval.groups()
+            try:
+                # Start with session state
+                subs_dict = {k: v[0] for k, v in self._state.items()}
+
+                # Parse and apply temporary assignments
+                assignments = re.split(r',(?![^\(]*\))', assignments_str)
+                for assignment in assignments:
+                    if '=' in assignment:
+                        var_name, val_str = assignment.split('=', 1)
+                        var_name = var_name.strip()
+                        # The value can be an expression, sympify it with full context
+                        val_expr = self._sympify_expression(val_str.strip())
+                        subs_dict[var_name] = val_expr
+
+                # Evaluate the main expression with the combined context
+                main_expr = self._sympify_expression(expr_str)
+                result = main_expr.subs(subs_dict, simultaneous=True)
+
+                return self._format_output(result, None)
+            except Exception as e:
+                return f"Error in eval: {e}"
 
         # --- Handle `int` command ---
         if statement_str.lower().startswith('int '):
