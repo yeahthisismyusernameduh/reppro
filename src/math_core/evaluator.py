@@ -121,6 +121,34 @@ class MathEvaluator:
             except Exception as e:
                 return f"Error in {command}: {e}"
 
+        # --- Handle simp, exp, fac ---
+        m_manip = re.match(r'^(simp|exp|fac)\s+(.*)', statement_str, re.IGNORECASE)
+        if m_manip:
+            command, expr_str = m_manip.groups()
+            command = command.lower()
+            try:
+                # Get the symbolic expression for the argument
+                symbolic_expr = self._sympify_expression(expr_str)
+
+                # If the expression is just a single symbol that is a variable in our state,
+                # then we operate on the expression stored in that variable.
+                if symbolic_expr.is_Symbol and str(symbolic_expr) in self._state:
+                    # We operate on the expression stored in the variable
+                    symbolic_expr = self._state[str(symbolic_expr)][0]
+
+                # Perform the symbolic operation
+                if command == 'simp':
+                    result = sympy.simplify(symbolic_expr)
+                elif command == 'exp':
+                    result = sympy.expand(symbolic_expr)
+                else: # fac
+                    result = sympy.factor(symbolic_expr)
+
+                # These commands return a symbolic result, not a fully evaluated number
+                return self._format_output(result, None)
+            except Exception as e:
+                return f"Error in {command}: {e}"
+
         # --- Handle `int` command ---
         if statement_str.lower().startswith('int '):
             # Strip 'int ' from the front

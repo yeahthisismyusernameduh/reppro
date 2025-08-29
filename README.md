@@ -238,3 +238,43 @@ Solutions: x = -3, 3
 > solve a*x = b wrt x
 Solutions: x = b/a
 ```
+
+---
+
+### Expression Manipulation
+
+#### `simp` - Simplification
+
+Attempts to simplify a mathematical expression.
+
+**Syntax:** `simp <expression>`
+
+**Example:**
+```
+> simp sin(x)**2 + cos(x)**2
+1
+```
+
+#### `exp` - Expansion
+
+Expands a mathematical expression.
+
+**Syntax:** `exp <expression>`
+
+**Example:**
+```
+> exp (x+y)**2
+x**2 + 2*x*y + y**2
+```
+
+#### `fac` - Factorization
+
+Factorizes a mathematical expression.
+
+**Syntax:** `fac <expression>`
+
+**Example:**
+```
+> fac x**2 - 1
+(x - 1)*(x + 1)
+```

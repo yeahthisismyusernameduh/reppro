@@ -67,6 +67,13 @@ solve x**2 = 4
 solve a*x + 5 = 15 wrt x
 diff x**2 wrt
 
+# --- Manipulation Tests ---
+simp (x+1)**2 - (x**2 + 2*x + 1)
+exp (x+1)*(x-1)
+fac x**2 - 1
+z = (a+1)**2
+exp z
+
 # --- Integration Tests ---
 int x**2
 int a*t wrt t
