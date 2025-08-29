@@ -72,7 +72,7 @@ class MathEvaluator:
             try:
                 # Auto-detect variable if not provided
                 if not var_str:
-                    temp_expr_str = expr_str # Use a temp var to not change expr_str for later use
+                    temp_expr_str = expr_str
                     if '=' in temp_expr_str:
                         lhs_str, rhs_str = temp_expr_str.split('=', 1)
                         lhs_sym = self._sympify_expression(lhs_str)
@@ -89,18 +89,7 @@ class MathEvaluator:
 
                 # If we have a variable (specified or detected), proceed.
                 if var_str:
-                    eval_context = {
-                        'root': sympy.root, 'cbrt': lambda x: sympy.root(x, 3),
-                        'sin': sympy.sin, 'cos': sympy.cos, 'tan': sympy.tan,
-                        'csc': sympy.csc, 'sec': sympy.sec, 'cot': sympy.cot,
-                        'asin': sympy.asin, 'acos': sympy.acos, 'atan': sympy.atan,
-                        'acsc': sympy.acsc, 'asec': sympy.asec, 'acot': sympy.acot,
-                        'sqrt': sympy.sqrt, 'log': sympy.log, 'ln': lambda x: sympy.log(x),
-                    }
-                    for k, v in self._state.items():
-                        if k != var_str:
-                            eval_context[k] = v[0]
-
+                    eval_context = self._get_limited_context(var_str)
                     var_symbol = sympy.Symbol(var_str)
 
                     if command == 'diff':
@@ -132,34 +121,73 @@ class MathEvaluator:
             except Exception as e:
                 return f"Error in {command}: {e}"
 
-        # --- Handle integrate (old syntax) ---
-        m_integrate = re.match(r'^integrate\((.*)\)$', statement_str, re.IGNORECASE)
-        if m_integrate:
-            func_name = "integrate"
-            args_str = m_integrate.group(1)
+        # --- Handle `int` command ---
+        if statement_str.lower().startswith('int '):
+            # Strip 'int ' from the front
+            work_str = statement_str[4:].strip()
+
+            var_str = None
+            lower_bound_str = None
+            upper_bound_str = None
+
+            # Staged parsing
+            # Look for 'wrt'
+            wrt_match = re.search(r'\s+wrt\s+(\w+)', work_str, re.IGNORECASE)
+            if wrt_match:
+                var_str = wrt_match.group(1)
+                # Remove the matched part from the string
+                work_str = work_str[:wrt_match.start()] + work_str[wrt_match.end():]
+
+            # Look for 'from ... to ...'
+            from_match = re.search(r'\s+from\s+(.*?)\s+to\s+(.*)', work_str, re.IGNORECASE)
+            if from_match:
+                lower_bound_str = from_match.group(1).strip()
+                upper_bound_str = from_match.group(2).strip()
+                # Remove the matched part
+                work_str = work_str[:from_match.start()] + work_str[from_match.end():]
+
+            expr_str = work_str.strip()
+
             try:
-                parts = [s.strip() for s in args_str.split(',')]
-                expr_str, var_str = parts[0], parts[1]
+                # Auto-detect variable if not provided
+                if not var_str:
+                    symbolic_expr = self._sympify_expression(expr_str)
+                    free_symbols = symbolic_expr.free_symbols
+                    if len(free_symbols) == 1:
+                        var_str = str(free_symbols.pop())
+                    elif len(free_symbols) > 1:
+                        return f"Error: Ambiguous expression. Please specify a variable using 'wrt'."
 
-                eval_context = {
-                    'root': sympy.root, 'cbrt': lambda x: sympy.root(x, 3),
-                    'sin': sympy.sin, 'cos': sympy.cos, 'tan': sympy.tan,
-                    'csc': sympy.csc, 'sec': sympy.sec, 'cot': sympy.cot,
-                    'asin': sympy.asin, 'acos': sympy.acos, 'atan': sympy.atan,
-                    'acsc': sympy.acsc, 'asec': sympy.asec, 'acot': sympy.acot,
-                    'sqrt': sympy.sqrt, 'log': sympy.log, 'ln': lambda x: sympy.log(x),
-                }
-                for k, v in self._state.items():
-                    if k != var_str:
-                        eval_context[k] = v[0]
+                # If we have a variable, proceed.
+                if var_str:
+                    var_symbol = sympy.Symbol(var_str)
+                    eval_context = self._get_limited_context(var_str)
+                    expr = sympy.sympify(expr_str, locals=eval_context)
 
-                expr = sympy.sympify(expr_str, locals=eval_context)
-                var_symbol = sympy.Symbol(var_str)
-                result = sympy.integrate(expr, var_symbol)
+                    # Definite Integration
+                    if lower_bound_str is not None and upper_bound_str is not None:
+                        # Bounds can be expressions themselves, so sympify them with full context
+                        full_context = self._get_limited_context(None)
+                        lower = sympy.sympify(lower_bound_str, locals=full_context)
+                        upper = sympy.sympify(upper_bound_str, locals=full_context)
+                        result = sympy.integrate(expr, (var_symbol, lower, upper))
+                    # Indefinite Integration
+                    else:
+                        result = sympy.integrate(expr, var_symbol)
+                        C = sympy.Symbol('C')
+                        result += C
 
-                return self._format_output(result, None)
+                    return self._format_output(result, None)
+
+                else: # No variable (e.g., int 5)
+                    const_expr = self._sympify_expression(expr_str)
+                    if const_expr.is_number:
+                        return "Error: Please specify a variable to integrate a constant."
+                    else: # Should not be reached if logic is correct
+                        return "Error: Could not determine variable for integration."
+
             except Exception as e:
-                return f"Error in {func_name}: {e}"
+                return f"Error in int: {e}"
 
 
         # --- Handle Display Commands ---
@@ -287,6 +315,23 @@ class MathEvaluator:
             eval_context[var_name] = sympy.Symbol(var_name)
 
         return sympy.sympify(expr_str, locals=eval_context)
+
+    def _get_limited_context(self, var_to_exclude: str | None) -> dict:
+        """Builds an evaluation context containing functions and state variables,
+        optionally excluding one variable to treat it as a symbol."""
+
+        eval_context = {
+            'root': sympy.root, 'cbrt': lambda x: sympy.root(x, 3),
+            'sin': sympy.sin, 'cos': sympy.cos, 'tan': sympy.tan,
+            'csc': sympy.csc, 'sec': sympy.sec, 'cot': sympy.cot,
+            'asin': sympy.asin, 'acos': sympy.acos, 'atan': sympy.atan,
+            'acsc': sympy.acsc, 'asec': sympy.asec, 'acot': sympy.acot,
+            'sqrt': sympy.sqrt, 'log': sympy.log, 'ln': lambda x: sympy.log(x),
+        }
+        for k, v in self._state.items():
+            if k != var_to_exclude:
+                eval_context[k] = v[0]
+        return eval_context
 
     def _format_state_new(self, command: str) -> str:
         """Formats the current state for display based on the command."""

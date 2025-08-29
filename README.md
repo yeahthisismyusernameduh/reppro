@@ -37,7 +37,7 @@ This will open a prompt where you can enter expressions. Type `quit` or `exit` t
 **Example Session:**
 ```
 > x = 10, y = 20 --q
-> diff(y * x**3 + sin(x), x)
+> diff y * x**3 + sin(x) wrt x
 3*x**2*y + cos(x)
 > pi
 3.14159
@@ -195,16 +195,30 @@ Calculates the derivative of an expression.
 10*x
 ```
 
-#### `integrate` - Integration
+#### `int` - Integration
 
-Calculates the indefinite integral of an expression.
+Calculates the definite or indefinite integral of an expression.
 
-**Syntax:** `integrate(<expression>, <variable>)`
+**Syntax (Indefinite):** `int <expression> [wrt <variable>]`
+**Syntax (Definite):** `int <expression> [wrt <variable>] from <a> to <b>`
 
-**Example:**
+*   The `wrt` clause is optional if the expression contains only one variable.
+*   For definite integrals, the `wrt` clause can come before or after the `from...to` clause.
+*   Indefinite integrals will include the constant of integration, `C`.
+
+**Examples:**
 ```
-> integrate(x**2, x)
-x**3/3
+> int x**2 + x
+C + x**2/2 + x**3/3
+
+> int x*y wrt x
+C + x**2*y/2
+
+> int x from 0 to 1
+1/2
+
+> int x*y from 0 to 1 wrt x
+y/2
 ```
 
 #### `solve` - Equation Solving

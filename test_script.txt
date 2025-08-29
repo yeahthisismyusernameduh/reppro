@@ -42,7 +42,6 @@ ln(e)
 # Calculus and Solving
 y = x**3
 diff y wrt x
-integrate(3*x**2, x)
 solve x**2 - 9 = 0 wrt x
 
 # --- Deletion Tests ---
@@ -67,3 +66,12 @@ solve x + y
 solve x**2 = 4
 solve a*x + 5 = 15 wrt x
 diff x**2 wrt
+
+# --- Integration Tests ---
+int x**2
+int a*t wrt t
+int x*y
+int 20
+int x from 0 to 2
+int y*x wrt x from 1 to a
+int y from 0 to 2 wrt y
