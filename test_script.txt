@@ -83,6 +83,20 @@ int x from 0 to 2
 int y*x wrt x from 1 to a
 int y from 0 to 2 wrt y
 
+# --- User Function Tests ---
+f(x) = x**2
+f(4)
+f(a)
+g(x, y) = x**2 + y**2
+g(3, 4)
+sin(x) = x
+f(1, 2)
+disp funcs
+del f
+disp funcs
+del g, a
+disp
+
 # --- Eval Tests ---
 eval x**2 + y for x = 3, y = 1
 eval a*t**2 for t=3

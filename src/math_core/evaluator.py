@@ -7,17 +7,18 @@ class MathEvaluator:
     """
     def __init__(self):
         """
-        Initializes the evaluator, setting up built-in constants.
+        Initializes the evaluator, setting up built-in constants and functions.
         """
-        self.DEFAULT_PRECISION = 6 # Use 6 for pi to show 3.14159
-        self._built_in_names = ['pi', 'e', 'tau']
-        # _state stores variables and constants.
-        # The value is a tuple: (sympy_expression, is_constant)
+        self.DEFAULT_PRECISION = 6
+        self._built_in_consts = ['pi', 'e', 'tau']
         self._state = {
             'pi': (sympy.pi, True),
             'e': (sympy.E, True),
             'tau': (2 * sympy.pi, True),
         }
+        self._functions = {}
+        # Get a list of built-in function names to prevent overriding
+        self._built_in_funcs = list(self._get_limited_context(None, include_funcs=False).keys())
 
     def evaluate(self, input_str: str):
         """
@@ -58,6 +59,19 @@ class MathEvaluator:
         Evaluates a single, pre-processed statement.
         """
         import re
+
+        # --- Handle Function Definition ---
+        m_func_def = re.match(r'^([a-zA-Z_][a-zA-Z0-9_]*)\s*\((.*?)\)\s*=\s*(.*)', statement_str)
+        if m_func_def:
+            name, args_str, expr_str = m_func_def.groups()
+            if name in self._built_in_funcs:
+                return f"Error: Cannot redefine built-in function '{name}'."
+            if name in self._built_in_consts:
+                return f"Error: Function name '{name}' conflicts with a built-in constant."
+
+            arg_names = [arg.strip() for arg in args_str.split(',') if arg.strip()]
+            self._functions[name] = (arg_names, expr_str)
+            return f"Defined function {name}({', '.join(arg_names)})"
 
         # --- Handle diff and solve with new 'wrt' syntax ---
         m = re.match(r'^(diff|solve)\s+(.*?)(?:\s+wrt\s+(\w+))?$', statement_str, re.IGNORECASE)
@@ -154,8 +168,8 @@ class MathEvaluator:
         if m_eval:
             expr_str, assignments_str = m_eval.groups()
             try:
-                # Start with session state
-                subs_dict = {k: v[0] for k, v in self._state.items()}
+                # Start with session state, using Symbols as keys
+                subs_dict = {sympy.Symbol(k): v[0] for k, v in self._state.items()}
 
                 # Parse and apply temporary assignments
                 assignments = re.split(r',(?![^\(]*\))', assignments_str)
@@ -163,15 +177,17 @@ class MathEvaluator:
                     if '=' in assignment:
                         var_name, val_str = assignment.split('=', 1)
                         var_name = var_name.strip()
-                        # The value can be an expression, sympify it with full context
                         val_expr = self._sympify_expression(val_str.strip())
-                        subs_dict[var_name] = val_expr
+                        subs_dict[sympy.Symbol(var_name)] = val_expr
 
                 # Evaluate the main expression with the combined context
                 main_expr = self._sympify_expression(expr_str)
                 result = main_expr.subs(subs_dict, simultaneous=True)
 
-                return self._format_output(result, None)
+                # The result of eval should be fully evaluated numerically
+                final_result = self._evaluate_for_display(result)
+
+                return self._format_output(final_result, None)
             except Exception as e:
                 return f"Error in eval: {e}"
 
@@ -221,7 +237,7 @@ class MathEvaluator:
                     # Definite Integration
                     if lower_bound_str is not None and upper_bound_str is not None:
                         # Bounds can be expressions themselves, so sympify them with full context
-                        full_context = self._get_limited_context(None)
+                        full_context = self._get_limited_context(None, include_funcs=True)
                         lower = sympy.sympify(lower_bound_str, locals=full_context)
                         upper = sympy.sympify(upper_bound_str, locals=full_context)
                         result = sympy.integrate(expr, (var_symbol, lower, upper))
@@ -245,7 +261,7 @@ class MathEvaluator:
 
 
         # --- Handle Display Commands ---
-        if statement_str in ('disp', 'disp vars', 'disp consts'):
+        if statement_str in ('disp', 'disp vars', 'disp consts', 'disp funcs'):
             return self._format_state_new(statement_str)
 
         # --- Handle Deletion ---
@@ -256,11 +272,17 @@ class MathEvaluator:
             deleted, errors = [], []
             for name in names_to_delete:
                 if not name: continue
-                if name in self._built_in_names:
-                    errors.append(f"Cannot delete built-in '{name}'")
+
+                if name in self._built_in_consts:
+                    errors.append(f"Cannot delete built-in constant '{name}'")
+                elif name in self._built_in_funcs:
+                    errors.append(f"Cannot delete built-in function '{name}'")
                 elif name in self._state:
                     del self._state[name]
-                    deleted.append(name)
+                    deleted.append(f"variable '{name}'")
+                elif name in self._functions:
+                    del self._functions[name]
+                    deleted.append(f"function '{name}'")
                 else:
                     errors.append(f"Name '{name}' not found")
 
@@ -283,7 +305,7 @@ class MathEvaluator:
             var_name = parts[0].strip()
             expr_str = parts[1].strip()
 
-            if not var_name.isidentifier() or var_name in self._built_in_names:
+            if not var_name.isidentifier() or var_name in self._built_in_consts:
                 return f"Error: Invalid or protected name '{var_name}'."
 
             if var_name in self._state and self._state[var_name][1]:
@@ -301,7 +323,7 @@ class MathEvaluator:
 
                 evaluated_value = self._evaluate_for_display(symbolic_expr)
                 formatted_value = self._format_output(evaluated_value, None)
-                return f"Defined {'constant' if is_const_assignment else 'variable'} {var_name} = {formatted_value}"
+                return f"Defined constant '{var_name}' = {formatted_value}" if is_const_assignment else f"Defined variable '{var_name}' = {formatted_value}"
             except Exception as e:
                 return f"Error: {e}"
 
@@ -320,7 +342,7 @@ class MathEvaluator:
             return f"Error: {e}"
 
     def _evaluate_for_display(self, expr):
-        subs_dict = {k: v[0] for k, v in self._state.items()}
+        subs_dict = {sympy.Symbol(k): v[0] for k, v in self._state.items()}
         return expr.subs(subs_dict)
 
     def _format_output(self, value, num_places) -> str:
@@ -355,22 +377,36 @@ class MathEvaluator:
         return symbolic_expr, num_places
 
     def _sympify_expression(self, expr_str: str):
-        eval_context = {
-            'diff': sympy.diff, 'integrate': sympy.integrate, 'solve': sympy.solve,
-            'root': sympy.root, 'cbrt': lambda x: sympy.root(x, 3),
-            'sin': sympy.sin, 'cos': sympy.cos, 'tan': sympy.tan,
-            'csc': sympy.csc, 'sec': sympy.sec, 'cot': sympy.cot,
-            'asin': sympy.asin, 'acos': sympy.acos, 'atan': sympy.atan,
-            'acsc': sympy.acsc, 'asec': sympy.asec, 'acot': sympy.acot,
-            'sqrt': sympy.sqrt, 'log': sympy.log, 'ln': lambda x: sympy.log(x),
-        }
+        # The context for sympify should contain all built-in and user-defined functions
+        eval_context = self._get_limited_context(None, include_funcs=True)
 
+        # We also need to include the state variables as symbols, so `y=x**3` works
         for var_name in self._state.keys():
             eval_context[var_name] = sympy.Symbol(var_name)
 
         return sympy.sympify(expr_str, locals=eval_context)
 
-    def _get_limited_context(self, var_to_exclude: str | None) -> dict:
+    def _create_lambda_for_func(self, func_name):
+        """Creates a callable lambda for a user-defined function to be used in sympify."""
+        arg_names, expr_str = self._functions[func_name]
+
+        def func_lambda(*args):
+            if len(args) != len(arg_names):
+                raise TypeError(f"{func_name}() takes {len(arg_names)} arguments but {len(args)} were given")
+
+            # Create a substitution dict for the function's local scope
+            local_subs = {sympy.Symbol(arg_name): arg_val for arg_name, arg_val in zip(arg_names, args)}
+
+            # The function's expression is evaluated with its local scope
+            func_expr = self._sympify_expression(expr_str)
+            evaluated_expr = func_expr.subs(local_subs)
+
+            # The result can then be evaluated with the main session state
+            return self._evaluate_for_display(evaluated_expr)
+
+        return func_lambda
+
+    def _get_limited_context(self, var_to_exclude: str | None, include_funcs=False) -> dict:
         """Builds an evaluation context containing functions and state variables,
         optionally excluding one variable to treat it as a symbol."""
 
@@ -382,6 +418,12 @@ class MathEvaluator:
             'acsc': sympy.acsc, 'asec': sympy.asec, 'acot': sympy.acot,
             'sqrt': sympy.sqrt, 'log': sympy.log, 'ln': lambda x: sympy.log(x),
         }
+
+        # Add user-defined functions if requested (to avoid recursion during init)
+        if include_funcs:
+            for name in self._functions:
+                eval_context[name] = self._create_lambda_for_func(name)
+
         for k, v in self._state.items():
             if k != var_to_exclude:
                 eval_context[k] = v[0]
@@ -398,7 +440,7 @@ class MathEvaluator:
             formatted_val = self._format_output(display_val, None)
 
             line = f"  {name} = {formatted_val}"
-            if name in self._built_in_names:
+            if name in self._built_in_consts:
                 built_ins.append(line)
             elif is_const:
                 user_consts.append(line)
@@ -421,6 +463,13 @@ class MathEvaluator:
         elif command == 'disp vars':
             output.append("Variables:")
             output.extend(user_vars if user_vars else ["  (none)"])
+        elif command == 'disp funcs':
+            output.append("Functions:")
+            if not self._functions:
+                output.append("  (none)")
+            else:
+                for name, (args, body) in sorted(self._functions.items()):
+                    output.append(f"  {name}({', '.join(args)}) = {body}")
 
         return "\n".join(output)
 

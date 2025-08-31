@@ -4,13 +4,13 @@ A powerful, feature-rich command-line tool for symbolic mathematics, built in Py
 
 ## Features
 
+*   **User-Defined Functions:** Create your own custom functions.
 *   **Interactive REPL & File Evaluation:** Use it on the fly or run pre-written scripts.
-*   **Stateful Memory:** Define and delete variables and constants that persist within a session.
+*   **Stateful Memory:** Define and delete variables, constants, and functions that persist within a session.
 *   **Symbolic Mathematics:** It's not just a calculator; it understands symbolic expressions.
 *   **Calculus & Algebra:** Perform differentiation, integration, and solve equations.
-*   **Flexible Syntax:** Supports multi-statement lines, quiet mode for assignments, and formatted numbers.
-*   **Arbitrary & Default Precision:** Evaluate expressions to any number of decimal places, with a sensible default.
-*   **Rich Function Library:** Includes a wide range of trigonometric, logarithmic, and root functions.
+*   **Flexible Syntax:** Supports multi-statement lines, quiet mode, and formatted numbers.
+*   **Rich Function Library:** Includes a wide range of built-in mathematical functions.
 
 ## Setup
 
@@ -36,13 +36,12 @@ This will open a prompt where you can enter expressions. Type `quit` or `exit` t
 
 **Example Session:**
 ```
-> x = 10, y = 20 --q
-> diff y * x**3 + sin(x) wrt x
-3*x**2*y + cos(x)
-> pi
-3.14159
-> del x, y
-Deleted: x, y
+> f(x) = x**2
+Defined function f(x)
+> f(5)
+25
+> diff f(x) wrt x
+2*x
 ```
 
 ### 2. File Evaluator
@@ -55,232 +54,86 @@ python3 math_file_eval.py path/to/your/script.txt
 
 The script file should contain one command per line. Lines starting with `#` are treated as comments and are ignored.
 
-**Example `script.txt`:**
-```
-# Define some variables and constants
-a = 5, const G = 9.8 --q
-
-# Perform a calculation
-result = a * G
-result
-
-# Display the final state
-disp
-```
-
-**Corresponding Output:**
-```
-In:  result = a * G
-Out: Defined variable result = 49.0
-
-In:  result
-Out: 49.0
-
-In:  disp
-Out:
-Built-Ins:
-  e = 2.71828
-  pi = 3.14159
-  tau = 6.28319
-
-Constants:
-  G = 9.8
-
-Variables:
-  a = 5
-  result = 49.0
-```
-
 ## Commands & Syntax Reference
 
 ### General Syntax
 
 *   **Multi-Statement Lines:** You can enter multiple commands on one line, separated by commas.
     ```
-    x = 10, const C = 5, x * C
+    x = 10, const C = 5, f(t) = C*t**2
     ```
-*   **Quiet Mode:** To suppress the confirmation output for assignments, end the line with `--q`.
+*   **Quiet Mode:** To suppress the confirmation output for definitions and deletions, end the line with `--q`.
     ```
     my_var = 12345 --q
     ```
-*   **Number Formatting:** You can use commas in numbers for readability. They will be ignored during evaluation.
+*   **Number Formatting:** You can use commas in numbers for readability. They will be ignored.
     ```
     1,000,000 / 2
     ```
 
-### Variable Assignment
+### State Management
 
-Use the `=` operator. Variables can be reassigned. The confirmation message will show the evaluated result.
+#### Variable and Constant Assignment
+Use the `=` operator for variables and `const` for constants.
 ```
 > my_var = 10 * 5
-Defined variable my_var = 50
+Defined variable 'my_var' = 50
+> const PI_ISH = 3.14
+Defined constant 'PI_ISH' = 3.14
 ```
 
-### Constant Assignment
+#### User-Defined Functions
+Define your own functions with a syntax similar to mathematical notation.
+Function parameters are local to the function and will not be replaced by session variables with the same name.
 
-Use the `const` keyword. Constants cannot be reassigned once defined.
+**Syntax:** `<name>(<arg1>, <arg2>, ...) = <expression>`
+
+**Examples:**
 ```
-> const SPEED_OF_LIGHT = 299,792,458
-Defined constant SPEED_OF_LIGHT = 299792458
+> f(x) = x**2
+Defined function f(x)
+> f(4)
+16
+> g(x,y) = x**2 + y
+> g(2, 5)
+9
+> a = 10 --q
+> g(a, 1)  # 'a' from the session is used as an argument
+101
 ```
 
-### Deletion
-
-*   Use the `del` keyword to delete one or more variables or constants.
-*   You cannot delete the built-in constants (`pi`, `e`, `tau`).
+#### Deletion (`del`)
+Use the `del` keyword to delete one or more variables, constants, or functions. You cannot delete built-in items.
 ```
-del my_var, SPEED_OF_LIGHT
+del my_var, PI_ISH, f, g
 ```
 
-### Display Commands
-
+#### Displaying State (`disp`)
 *   `disp`: Shows all defined items, categorized into `Built-Ins`, `Constants`, and `Variables`.
 *   `disp vars`: Shows only user-defined variables.
 *   `disp consts`: Shows only user-defined constants.
+*   `disp funcs`: Shows only user-defined functions.
 
-**Example `disp` output:**
+**Example `disp funcs` output:**
 ```
-Built-Ins:
-  e = 2.71828
-  pi = 3.14159
-  tau = 6.28319
-
-Constants:
-  (none)
-
-Variables:
-  x = 10
-```
-
-### Precision
-
-*   **Default Precision:** All numerical results are formatted to a default precision (5 decimal places, where applicable). Trailing zeros are removed.
-*   **Arbitrary Precision:** Use the `to N places` syntax at the end of an expression to evaluate it numerically to a specific precision.
-    ```
-    > 1/7
-    0.142857
-    > 1/7 to 20 places
-    0.14285714285714285714
-    ```
-
-### Supported Functions
-
-The tool supports a wide range of common mathematical functions.
-
-*   **Trigonometric:** `sin`, `cos`, `tan`, `csc`, `sec`, `cot`
-*   **Inverse Trig:** `asin`, `acos`, `atan`, etc.
-*   **Roots:** `sqrt(x)`, `cbrt(x)`, `root(x, n)`
-*   **Logarithms:** `log(x, base)`, `ln(x)`
-
----
-
-### Calculus and Solving
-
-#### `diff` - Differentiation
-
-Calculates the derivative of an expression.
-
-**Syntax:** `diff <expression> [wrt <variable>]`
-
-*   If the expression contains only one variable, you can omit `wrt`.
-*   If the expression contains multiple variables, you must specify which one to differentiate with respect to.
-
-**Examples:**
-```
-> diff x**3 + 2*x
-2*x + 3*x**2
-
-> a=5, b=10 --q
-> diff a*x**2 + b*y wrt x
-10*x
-```
-
-#### `int` - Integration
-
-Calculates the definite or indefinite integral of an expression.
-
-**Syntax (Indefinite):** `int <expression> [wrt <variable>]`
-**Syntax (Definite):** `int <expression> [wrt <variable>] from <a> to <b>`
-
-*   The `wrt` clause is optional if the expression contains only one variable.
-*   For definite integrals, the `wrt` clause can come before or after the `from...to` clause.
-*   Indefinite integrals will include the constant of integration, `C`.
-
-**Examples:**
-```
-> int x**2 + x
-C + x**2/2 + x**3/3
-
-> int x*y wrt x
-C + x**2*y/2
-
-> int x from 0 to 1
-1/2
-
-> int x*y from 0 to 1 wrt x
-y/2
-```
-
-#### `solve` - Equation Solving
-
-Solves an equation for a given variable.
-
-**Syntax:** `solve <equation> [wrt <variable>]`
-
-*   Equations can be written with an `=` sign (e.g., `x**2 = 4`) or as an expression that is assumed to equal zero (e.g., `x**2 - 4`).
-*   Like `diff`, the variable is optional if it is unambiguous.
-
-**Examples:**
-```
-> solve x**2 - 9
-Solutions: x = -3, 3
-
-> solve a*x = b wrt x
-Solutions: x = b/a
+Functions:
+  f(x) = x**2
+  g(x, y) = x**2 + y
 ```
 
 ---
 
-### Expression Manipulation
+### Expressions and Operations
 
-#### `simp` - Simplification
+#### Precision
+*   **Default Precision:** Numerical results are formatted to a default precision (5 decimal places, where applicable).
+*   **Arbitrary Precision:** Use the `to N places` syntax to evaluate an expression to a specific precision.
+    ```
+    > pi to 20 places
+    3.14159265358979323846
+    ```
 
-Attempts to simplify a mathematical expression.
-
-**Syntax:** `simp <expression>`
-
-**Example:**
-```
-> simp sin(x)**2 + cos(x)**2
-1
-```
-
-#### `exp` - Expansion
-
-Expands a mathematical expression.
-
-**Syntax:** `exp <expression>`
-
-**Example:**
-```
-> exp (x+y)**2
-x**2 + 2*x*y + y**2
-```
-
-#### `fac` - Factorization
-
-Factorizes a mathematical expression.
-
-**Syntax:** `fac <expression>`
-
-**Example:**
-```
-> fac x**2 - 1
-(x - 1)*(x + 1)
-```
-
-#### `eval` - Evaluation with Temporary Values
-
+#### Evaluation with Temporary Values (`eval`)
 Evaluates an expression using temporary values for variables, without affecting the main session state.
 
 **Syntax:** `eval <expression> for <var1>=<val1>, <var2>=<val2>, ...`
@@ -293,3 +146,39 @@ Evaluates an expression using temporary values for variables, without affecting 
 > x
 2
 ```
+
+#### Expression Manipulation (`simp`, `exp`, `fac`)
+*   `simp <expression>`: Attempts to simplify an expression.
+*   `exp <expression>`: Expands an expression.
+*   `fac <expression>`: Factorizes an expression.
+
+**Example:**
+```
+> simp sin(x)**2 + cos(x)**2
+1
+> exp (x+y)**2
+x**2 + 2*x*y + y**2
+```
+
+#### Calculus and Solving
+
+*   **`diff <expr> [wrt <var>]`**: Calculates the derivative. The variable is optional if unambiguous.
+*   **`solve <equation> [wrt <var>]`**: Solves an equation. The variable is optional if unambiguous.
+*   **`int <expr> [wrt <var>] [from <a> to <b>]`**: Calculates the definite or indefinite integral. The `wrt` and `from...to` clauses are optional and can be in any order.
+
+**Example:**
+```
+> diff x**3 + a*x wrt x
+3*x**2 + a
+
+> solve x**2 = 4
+Solutions: x = -2, 2
+
+> int x**2 from 0 to 1
+1/2
+```
+
+---
+
+### Built-In Functions and Constants
+The tool supports a wide range of built-in functions (`sin`, `cos`, `log`, `sqrt`, etc.) and constants (`pi`, `e`, `tau`). These cannot be redefined or deleted.
